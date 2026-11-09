@@ -47,13 +47,21 @@ engine_thread.start()
 
 
 def application(environ, start_response):
-    if environ.get("PATH_INFO") == "/health/":
-        if engine_ready.is_set() and engine_thread.is_alive():
+    path = environ.get("PATH_INFO")
+    if path == "/health/":
+        if engine_thread.is_alive():
             status = "200 OK"
-            body = b"Game engine is running."
+            body = b"Game engine process is running."
         else:
             status = "503 Service Unavailable"
-            body = b"Game engine is not running."
+            body = b"Game engine process is not running."
+    elif path == "/ready/":
+        if engine_ready.is_set() and engine_thread.is_alive():
+            status = "200 OK"
+            body = b"Game engine is ready."
+        else:
+            status = "503 Service Unavailable"
+            body = b"Game engine is not ready."
     else:
         status = "404 Not Found"
         body = b"Not found."
