@@ -49,8 +49,8 @@ services:
         source: /*
         destination: /index.html
     envVars:
-      - key: VITE_API_HOST
+      - key: VITE_API_URL
         fromService:
           type: web
           name: arcade-api
-          property: host
+          property: url

@@ -1,9 +1,9 @@
 
+const configuredApiOrigin = import.meta.env.VITE_API_URL;
 const configuredApiBaseUrl =
-  import.meta.env.VITE_API_BASE_URL ||
-  (import.meta.env.VITE_API_HOST
-    ? `https://${import.meta.env.VITE_API_HOST}/api`
-    : "http://127.0.0.1:8000/api");
+  (configuredApiOrigin
+    ? `${configuredApiOrigin.replace(/\/+$/, "")}/api`
+    : import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api");
 const API_BASE_URL = configuredApiBaseUrl.replace(/\/+$/, "");
 
 // ==============================
@@ -533,4 +533,3 @@ export function claimPCPairing(
     accessToken,
   );
 }
-
