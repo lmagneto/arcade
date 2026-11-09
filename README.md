@@ -10,9 +10,10 @@ guaranteed to run continuously.
 
 To deploy:
 
-1. Create a Supabase project on the free plan and copy its PostgreSQL connection
-   string. Use the Supavisor session-pooler connection string if the direct
-   database endpoint is not reachable over IPv4.
+1. Use the Supabase project's Supavisor **session-pooler** PostgreSQL connection
+   string. Do not use transaction-pooler mode: the game engine relies on a
+   PostgreSQL advisory lock that must remain on one database session. Render's
+   direct connection to Supabase may also be unavailable over IPv4.
 2. In Render, create a Blueprint from this repository and select `render.yaml`.
    Enter the same Supabase connection string in both `DATABASE_URL` prompts,
    and set `CORS_ALLOWED_ORIGINS` to the frontend's HTTPS origin (for example,
