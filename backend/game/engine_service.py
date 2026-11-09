@@ -14,12 +14,20 @@ engine_ready = threading.Event()
 
 
 def _run_engine():
-    django.setup()
+    django_initialized = False
     while True:
         try:
+            if not django_initialized:
+                logger.info("Initializing Django for the game engine.")
+                django.setup()
+                django_initialized = True
+                logger.info("Django initialized for the game engine.")
+
             if not engine_ready.is_set():
+                logger.info("Applying database migrations for the game engine.")
                 call_command("migrate", interactive=False)
                 engine_ready.set()
+                logger.info("Database migrations completed for the game engine.")
 
             call_command("run_game")
             logger.warning("Game controller exited; retrying in 5 seconds.")
