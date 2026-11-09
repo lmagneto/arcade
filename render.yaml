@@ -1,0 +1,51 @@
+envVarGroups:
+  - name: arcade-shared
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+
+services:
+  - type: web
+    name: arcade-api
+    runtime: python
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2
+    envVars:
+      - fromGroup: arcade-shared
+      - key: DEBUG
+        value: "False"
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+
+  - type: web
+    name: arcade-game-engine
+    runtime: python
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn game.engine_service:application --bind 0.0.0.0:$PORT --workers 1
+    healthCheckPath: /health/
+    envVars:
+      - fromGroup: arcade-shared
+      - key: DEBUG
+        value: "False"
+
+  - type: web
+    name: arcade-frontend
+    runtime: static
+    region: oregon
+    rootDir: frontend
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_HOST
+        fromService:
+          type: web
+          name: arcade-api
+          property: host

@@ -40,7 +40,6 @@ import {
   type PlatformMajorAccount,
   type PlatformReserve,
   type PlatformTransaction,
-  returnMajorAccountCredits,
   claimPCPairing,
 } from "./api";
 
@@ -131,8 +130,6 @@ const [authInitializing, setAuthInitializing] = useState(true);
   const [direction, setDirection] = useState<"CREDIT" | "DEBIT">("CREDIT");
   const [amount, setAmount] = useState("");
   const [transferring, setTransferring] = useState(false);
-  const [returnAmount, setReturnAmount] = useState("");
-  const [returningCredits, setReturningCredits] = useState(false);
   const [pairingCode, setPairingCode] = useState("");
 const [linkingPC, setLinkingPC] = useState(false);
   const selectedAccount = accounts.find(
@@ -809,62 +806,6 @@ async function refreshOwnerData() {
     }
   }
 
-  
-  // Return virtual credits from the major account to the platform reserve
-  async function handleReturnCredits(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
-    event.preventDefault();
-
-    if (!selectedAccountId) {
-      setError(true);
-      setMessage("Select a major account first.");
-      return;
-    }
-
-    if (
-      !/^\d+(\.\d{1,2})?$/.test(returnAmount) ||
-      Number(returnAmount) <= 0
-    ) {
-      setError(true);
-      setMessage(
-        "Enter an amount greater than zero with up to 2 decimal places.",
-      );
-      return;
-    }
-
-    setReturningCredits(true);
-    setMessage("");
-    setError(false);
-
-    try {
-      const result = await returnMajorAccountCredits(
-        accessToken,
-        selectedAccountId,
-        returnAmount,
-      );
-
-      setReturnAmount("");
-      setMessage(
-        `${result.detail} Reference: ${result.reference}`,
-      );
-
-      const accountResult = await getMajorAccounts(accessToken);
-      setAccounts(accountResult.accounts);
-      await loadPlayers(accessToken, selectedAccountId);
-    } catch (err) {
-      setError(true);
-      setMessage(
-        err instanceof Error
-          ? err.message
-          : "Unable to return credits to the platform reserve.",
-      );
-    } finally {
-      setReturningCredits(false);
-    }
-  }
-
-  
 async function handleLinkPC(event: React.FormEvent<HTMLFormElement>) {
   event.preventDefault();
 
@@ -2162,4 +2103,3 @@ if (role === "PLATFORM_ADMIN") {
 export default App;
 
 /* Platform finance transaction history */
-

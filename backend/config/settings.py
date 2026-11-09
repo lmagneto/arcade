@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -10,8 +11,6 @@ load_dotenv(BASE_DIR.parent / ".env")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
-
-from django.core.exceptions import ImproperlyConfigured
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
@@ -31,6 +30,8 @@ ALLOWED_HOSTS = [
     ).split(",")
     if host.strip()
 ]
+if os.getenv("RENDER_EXTERNAL_HOSTNAME"):
+    ALLOWED_HOSTS.append(os.environ["RENDER_EXTERNAL_HOSTNAME"])
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
@@ -38,6 +39,11 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5174",
     "http://127.0.0.1:5174",
 ]
+CORS_ALLOWED_ORIGINS.extend(
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+)
 # Application definition
 
 INSTALLED_APPS = [
@@ -91,19 +97,44 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DB_NAME"),
-        "USER": os.getenv("DB_USER"),
-        "PASSWORD": os.getenv("DB_PASSWORD"),
-        "HOST": os.getenv("DB_HOST", "127.0.0.1"),
-        "PORT": os.getenv("DB_PORT", "5432"),
-        "OPTIONS": {
-            "sslmode": "require",
-        },
+database_url = os.getenv("DATABASE_URL")
+if database_url:
+    parsed_database_url = urlsplit(database_url)
+    if parsed_database_url.scheme not in {"postgres", "postgresql"}:
+        raise ImproperlyConfigured(
+            "DATABASE_URL must use the postgres or postgresql scheme."
+        )
+    if not parsed_database_url.hostname or not parsed_database_url.path.strip("/"):
+        raise ImproperlyConfigured(
+            "DATABASE_URL must include a database host and name."
+        )
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": unquote(parsed_database_url.path.lstrip("/")),
+            "USER": unquote(parsed_database_url.username or ""),
+            "PASSWORD": unquote(parsed_database_url.password or ""),
+            "HOST": parsed_database_url.hostname,
+            "PORT": str(parsed_database_url.port or 5432),
+            "OPTIONS": {
+                "sslmode": "require",
+            },
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("DB_NAME"),
+            "USER": os.getenv("DB_USER"),
+            "PASSWORD": os.getenv("DB_PASSWORD"),
+            "HOST": os.getenv("DB_HOST", "127.0.0.1"),
+            "PORT": os.getenv("DB_PORT", "5432"),
+            "OPTIONS": {
+                "sslmode": "require",
+            },
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators
@@ -170,4 +201,3 @@ REST_FRAMEWORK = {
         "pairing_status": "60/minute",
     },
 }
-

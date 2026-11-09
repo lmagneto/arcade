@@ -1,7 +1,10 @@
 
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api"
-).replace(/\/+$/, "");
+const configuredApiBaseUrl =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.VITE_API_HOST
+    ? `https://${import.meta.env.VITE_API_HOST}/api`
+    : "http://127.0.0.1:8000/api");
+const API_BASE_URL = configuredApiBaseUrl.replace(/\/+$/, "");
 
 // ==============================
 // Device API types
@@ -530,5 +533,4 @@ export function claimPCPairing(
     accessToken,
   );
 }
-
 
