@@ -14,8 +14,8 @@ To deploy:
    string. Use the Supavisor session-pooler connection string if the direct
    database endpoint is not reachable over IPv4.
 2. In Render, create a Blueprint from this repository and select `render.yaml`.
-   Set the `DATABASE_URL` prompt to the Supabase connection string and
-   `CORS_ALLOWED_ORIGINS` to the frontend's HTTPS origin (for example,
+   Enter the same Supabase connection string in both `DATABASE_URL` prompts,
+   and set `CORS_ALLOWED_ORIGINS` to the frontend's HTTPS origin (for example,
    `https://arcade-frontend.onrender.com`). Render generates the Django
    `SECRET_KEY`.
 3. Wait for the API, engine, and frontend services to finish their initial
