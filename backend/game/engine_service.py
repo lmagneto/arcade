@@ -11,6 +11,8 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 logger = logging.getLogger(__name__)
 engine_ready = threading.Event()
+engine_thread: threading.Thread | None = None
+engine_thread_lock = threading.Lock()
 
 
 def _run_engine():
@@ -38,25 +40,37 @@ def _run_engine():
         time.sleep(5)
 
 
-engine_thread = threading.Thread(
-    target=_run_engine,
-    name="game-round-controller",
-    daemon=True,
-)
-engine_thread.start()
+def _ensure_engine_thread():
+    global engine_thread
+
+    with engine_thread_lock:
+        if engine_thread is None or not engine_thread.is_alive():
+            engine_ready.clear()
+            engine_thread = threading.Thread(
+                target=_run_engine,
+                name="game-round-controller",
+                daemon=True,
+            )
+            engine_thread.start()
+
+        assert engine_thread is not None
+    return engine_thread
 
 
 def application(environ, start_response):
     path = environ.get("PATH_INFO")
+    if path in {"/health/", "/ready/"}:
+        thread = _ensure_engine_thread()
+
     if path == "/health/":
-        if engine_thread.is_alive():
+        if thread.is_alive():
             status = "200 OK"
             body = b"Game engine process is running."
         else:
             status = "503 Service Unavailable"
             body = b"Game engine process is not running."
     elif path == "/ready/":
-        if engine_ready.is_set() and engine_thread.is_alive():
+        if engine_ready.is_set() and thread.is_alive():
             status = "200 OK"
             body = b"Game engine is ready."
         else:

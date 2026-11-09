@@ -44,6 +44,10 @@ services:
     rootDir: frontend
     buildCommand: pnpm install --frozen-lockfile && pnpm build
     staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       - key: VITE_API_HOST
         fromService:

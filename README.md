@@ -6,8 +6,10 @@ The `render.yaml` Blueprint defines a free Render web service for the Django
 API, a free static site for the frontend, and a free web service for the game
 round controller. Render checks `/health/` to verify the engine process is
 serving requests; `/ready/` reports whether Django initialization and database
-migrations have completed. Render may spin down free web services after
-inactivity, so rounds are not guaranteed to run continuously.
+migrations have completed. The frontend rewrites client-side routes to
+`index.html`, so links such as `/login` work on direct visits. Render may spin
+down free web services after inactivity, so rounds are not guaranteed to run
+continuously.
 
 To deploy:
 
