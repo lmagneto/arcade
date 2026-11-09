@@ -11,7 +11,7 @@ services:
     name: arcade-api
     runtime: python
     plan: free
-    region: oregon
+    region: frankfurt
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2
@@ -26,7 +26,7 @@ services:
     name: arcade-game-engine
     runtime: python
     plan: free
-    region: oregon
+    region: frankfurt
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn game.engine_service:application --bind 0.0.0.0:$PORT --workers 1
@@ -39,7 +39,6 @@ services:
   - type: web
     name: arcade-frontend
     runtime: static
-    region: oregon
     rootDir: frontend
     buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
     staticPublishPath: dist
