@@ -1,0 +1,399 @@
+
+import { useEffect, useState } from "react";
+import {
+  activateDevice,
+  createPairingRequest,
+  fetchCurrentRound,
+  fetchPairingStatus,
+  type CurrentRound,
+} from "./api";
+import "./App.css";
+
+const INSTALLATION_KEY = "arcade-installation-id";
+const CREDENTIAL_KEY = "arcade-device-credential";
+
+function getInstallationId(): string {
+  let id = localStorage.getItem(INSTALLATION_KEY);
+
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(INSTALLATION_KEY, id);
+  }
+
+  return id;
+}
+
+function App() {
+  const [installationId] = useState(getInstallationId);
+  const [pairingCode, setPairingCode] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [pairingStatus, setPairingStatus] = useState("STARTING");
+  const [message, setMessage] = useState("");
+  const [deviceCredential, setDeviceCredential] = useState(
+  () => localStorage.getItem(CREDENTIAL_KEY) ?? "",);
+  const [round, setRound] = useState<CurrentRound | null>(null);
+  const [accountName, setAccountName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function requestCode() {
+      try {
+ if (localStorage.getItem(CREDENTIAL_KEY)) {
+  setPairingStatus("CONNECTED");
+  setMessage("");
+  return;
+}
+        setPairingStatus("REQUESTING");
+        const result = await createPairingRequest(installationId);
+
+        if (cancelled) return;
+
+        setPairingCode(result.pairing_code);
+        setExpiresAt(result.expires_at);
+        setSecondsLeft(
+          Math.max(
+            0,
+            Math.floor((new Date(result.expires_at).getTime() - Date.now()) / 1000),
+          ),
+        );
+        setPairingStatus("WAITING");
+        setMessage("");
+      } catch (error) {
+        if (cancelled) return;
+        setPairingStatus("ERROR");
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Unable to request a pairing code.",
+        );
+      }
+    }
+
+    void requestCode();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [installationId]);
+
+  useEffect(() => {
+    if (!expiresAt || pairingStatus !== "WAITING") return;
+
+    const updateCountdown = () => {
+      const remaining = Math.max(
+        0,
+        Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 1000),
+      );
+
+      setSecondsLeft(remaining);
+
+      if (remaining <= 0) {
+        setPairingStatus("EXPIRED");
+        setMessage("This pairing code has expired.");
+      }
+    };
+
+    updateCountdown();
+    const timer = window.setInterval(updateCountdown, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [expiresAt, pairingStatus]);
+
+  useEffect(() => {
+    if (
+      pairingStatus !== "WAITING" &&
+      pairingStatus !== "APPROVED"
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    let checking = false;
+
+    async function checkStatus() {
+      if (checking || cancelled) return;
+      checking = true;
+
+      try {
+        const result = await fetchPairingStatus(installationId);
+        if (cancelled) return;
+
+        if (result.status === "EXPIRED") {
+          setPairingStatus("EXPIRED");
+          setMessage("This pairing code has expired.");
+          return;
+        }
+
+        if (result.status === "ACTIVATED") {
+          setPairingStatus("ACTIVATED");
+          setMessage(
+            "This installation has already been activated. Reopen the authorized installation to continue.",
+          );
+          return;
+        }
+
+        if (result.status === "APPROVED") {
+  setMessage("Approved. Completing activation...");
+
+          const activated = await activateDevice(
+            installationId,
+            pairingCode,
+          );
+
+          if (cancelled) return;
+
+          localStorage.setItem(CREDENTIAL_KEY, activated.device_credential);
+setDeviceCredential(activated.device_credential);
+          setAccountName(activated.major_account_id);
+          setPairingStatus("CONNECTED");
+          setMessage("");
+        }
+      } catch (error) {
+        if (cancelled) return;
+
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not check pairing status.",
+        );
+      } finally {
+        checking = false;
+      }
+    }
+
+    void checkStatus();
+    const timer = window.setInterval(() => void checkStatus(), 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [installationId, pairingCode, pairingStatus]);
+
+  useEffect(() => {
+    if (!deviceCredential) return;
+
+    let cancelled = false;
+    let checking = false;
+
+    async function updateRound() {
+      if (checking || cancelled) return;
+      checking = true;
+
+      try {
+        const result = await fetchCurrentRound(deviceCredential);
+        if (!cancelled) setRound(result.round);
+      } catch (error) {
+        if (!cancelled) {
+          setMessage(
+            error instanceof Error
+              ? error.message
+              : "Unable to retrieve the current round.",
+          );
+        }
+      } finally {
+        checking = false;
+      }
+    }
+
+    void updateRound();
+    const timer = window.setInterval(() => void updateRound(), 1000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [deviceCredential]);
+
+  async function renewPairingCode() {
+    setBusy(true);
+    setMessage("");
+    setPairingCode("");
+    setExpiresAt("");
+    setPairingStatus("REQUESTING");
+
+    try {
+      const result = await createPairingRequest(installationId);
+      setPairingCode(result.pairing_code);
+      setExpiresAt(result.expires_at);
+      setSecondsLeft(
+        Math.max(
+          0,
+          Math.floor((new Date(result.expires_at).getTime() - Date.now()) / 1000),
+        ),
+      );
+      setPairingStatus("WAITING");
+    } catch (error) {
+      setPairingStatus("ERROR");
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to request another pairing code.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const status = round?.status ?? "WAITING";
+  const multiplier = Number(round?.display_multiplier ?? "1");
+  const crashed = status === "CRASHED" || status === "COMPLETED";
+
+  return (
+    <main className="game-shell">
+      <header className="topbar">
+        <div className="brand">
+          <span className="brand-mark">A</span>
+          <div>
+            <h1>ARCADE</h1>
+            <p>VIRTUAL FLIGHT ARENA</p>
+          </div>
+        </div>
+
+        <div className="connection">
+          <span className="status-dot" />
+          {deviceCredential ? "DEVICE CONNECTED" : "PAIRING REQUIRED"}
+        </div>
+      </header>
+
+      {!deviceCredential ? (
+        <section className="flight-panel connection-panel">
+          <div className="flight-heading">
+            <span>LINK THIS PC</span>
+            <span className="demo-tag">DEVICE ACTIVATION</span>
+          </div>
+
+          <h2>
+            {pairingStatus === "ERROR"
+              ? "Unable to create pairing code"
+              : "Connect your major account"}
+          </h2>
+
+          <p className="connect-description">
+            Open your major account portal, choose Link a PC, and enter
+            the code shown below. Keep this window open until approval.
+          </p>
+
+          <div className="pairing-code">
+            {pairingStatus === "REQUESTING" ||
+            pairingStatus === "STARTING"
+              ? "REQUESTING CODE..."
+              : pairingCode || "—"}
+          </div>
+
+          {pairingStatus === "WAITING" && (
+            <>
+              <p className="countdown">
+                Expires in {Math.floor(secondsLeft / 60)}:
+                {String(secondsLeft % 60).padStart(2, "0")}
+              </p>
+              <p className="waiting-message">
+                Waiting for your major account owner to approve this PC...
+              </p>
+            </>
+          )}
+
+          {pairingStatus === "APPROVED" && (
+            <p className="waiting-message">Account approved. Activating PC...</p>
+          )}
+
+          {pairingStatus === "CONNECTED" && (
+            <p className="waiting-message">PC successfully linked.</p>
+          )}
+
+          {message && <p className="error-message">{message}</p>}
+
+          {pairingStatus === "EXPIRED" && (
+            <button
+              className="primary-button"
+              disabled={busy}
+              onClick={() => void renewPairingCode()}
+            >
+              {busy ? "Requesting..." : "Request a new code"}
+            </button>
+          )}
+
+          {pairingStatus === "ERROR" && (
+            <button
+              className="primary-button"
+              disabled={busy}
+              onClick={() => void renewPairingCode()}
+            >
+              {busy ? "Requesting..." : "Retry"}
+            </button>
+          )}
+
+          <p className="demo-notice">
+            Virtual-credit school project · Device credentials are not saved by this prototype
+          </p>
+        </section>
+      ) : (
+        <>
+          <section className="round-strip">
+            <div>
+              <span className="muted-label">ROUND</span>
+              <strong>#{round?.round_number ?? "—"}</strong>
+            </div>
+            <div className="round-state">
+              <span className={`state-dot ${status.toLowerCase()}`} />
+              {round ? status : "CONNECTING"}
+            </div>
+          </section>
+
+          <section className="flight-panel">
+            <div className="sky-grid" />
+            <div className="sky-glow" />
+
+            <div className="flight-heading">
+              <span>LIVE FLIGHT MULTIPLIER</span>
+              <span className="demo-tag">SERVER DATA</span>
+            </div>
+
+            <div className={`multiplier ${crashed ? "crashed" : ""}`}>
+              {round && Number.isFinite(multiplier)
+                ? `${multiplier.toFixed(2)}×`
+                : "—"}
+            </div>
+
+            <div className="flight-message">
+              {!round && "Waiting for round data"}
+              {round && status === "WAITING" && "Waiting for the next flight"}
+              {round && status === "RUNNING" && "Flight in progress"}
+              {round && crashed && "Round result received from server"}
+              {round && status === "ABORTED" && "This round was interrupted"}
+            </div>
+
+            <p className="demo-notice">
+              Server-authoritative round · Virtual credits only
+            </p>
+          </section>
+
+          <section className="players-section">
+            <div className="section-heading">
+              <div>
+                <h2>Player stations</h2>
+                <p>Next step: connect synchronized player slots</p>
+              </div>
+              <span className="slot-count">CONNECTED</span>
+            </div>
+          </section>
+
+          <p className="server-info">
+            Account: {accountName}
+          </p>
+          {message && <p className="error-message">{message}</p>}
+        </>
+      )}
+
+      <footer className="footer">
+        <span>ARCADE · SCHOOL PROJECT</span>
+        <span>VIRTUAL CREDITS · NO CASH VALUE</span>
+      </footer>
+    </main>
+  );
+}
+
+export default App;
