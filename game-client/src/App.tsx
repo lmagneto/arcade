@@ -1,5 +1,6 @@
 import { ArcadeGame } from "./arcade/ArcadeGame";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import {
   activateDevice,
   createPairingRequest,
@@ -25,6 +26,64 @@ const CREDENTIAL_KEY = "arcade-device-credential";
 const MOUSE_BRIDGE_BASE_URL = import.meta.env.DEV
   ? "/mouse-bridge"
   : "http://127.0.0.1:8765";
+
+type MouseBridgeDevices = {
+  count: number;
+  devices: Array<{
+    player_slot: number;
+    device_handle: number;
+    device_name: string;
+  }>;
+};
+
+type MouseBridgeEvents = {
+  events: Array<{
+    id: number;
+    player_slot: number;
+    button: string;
+  }>;
+  latest_id: number;
+};
+
+type NativeMouseBridge = {
+  getDevices(): Promise<MouseBridgeDevices>;
+  getEvents(options: { since: number }): Promise<MouseBridgeEvents>;
+};
+
+const nativeMouseBridge = registerPlugin<NativeMouseBridge>("MouseBridge");
+
+async function getMouseBridgeDevices(): Promise<unknown> {
+  if (Capacitor.getPlatform() === "android") {
+    return nativeMouseBridge.getDevices();
+  }
+
+  const response = await fetch(`${MOUSE_BRIDGE_BASE_URL}/devices`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Mouse bridge devices request failed: HTTP ${response.status}`,
+    );
+  }
+  return response.json();
+}
+
+async function getMouseBridgeEvents(since: number): Promise<unknown> {
+  if (Capacitor.getPlatform() === "android") {
+    return nativeMouseBridge.getEvents({ since });
+  }
+
+  const response = await fetch(
+    `${MOUSE_BRIDGE_BASE_URL}/events?since=${since}`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Mouse bridge events request failed: HTTP ${response.status}`,
+    );
+  }
+  return response.json();
+}
 
 function getInstallationId(): string {
   let id = localStorage.getItem(INSTALLATION_KEY);
@@ -471,21 +530,8 @@ useEffect(() => {
       checking = true;
 
       try {
-        // 1. Read the physical mice detected by Windows Raw Input.
-        const devicesResponse = await fetch(
-          `${MOUSE_BRIDGE_BASE_URL}/devices`,
-          {
-            cache: "no-store",
-          },
-        );
-
-        if (!devicesResponse.ok) {
-          throw new Error(
-            `Mouse bridge devices request failed: HTTP ${devicesResponse.status}`,
-          );
-        }
-
-        const devicesData: unknown = await devicesResponse.json();
+        // Read physical mouse devices from Raw Input or the Android native bridge.
+        const devicesData: unknown = await getMouseBridgeDevices();
 
         if (
           typeof devicesData !== "object" ||
@@ -513,18 +559,7 @@ if (count !== lastSyncedCount) {
 }
 
         // 2. Read new events, preserving each event's player slot.
-        const eventsResponse = await fetch(
-          `${MOUSE_BRIDGE_BASE_URL}/events?since=${lastEventId}`,
-          { cache: "no-store" },
-        );
-
-        if (!eventsResponse.ok) {
-          throw new Error(
-            `Mouse bridge events request failed: HTTP ${eventsResponse.status}`,
-          );
-        }
-
-        const eventsData: unknown = await eventsResponse.json();
+        const eventsData: unknown = await getMouseBridgeEvents(lastEventId);
 
         if (
           typeof eventsData !== "object" ||

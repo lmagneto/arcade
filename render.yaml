@@ -24,7 +24,7 @@ services:
       - key: GAME_ENGINE_URL
         value: https://arcade-game-engine.onrender.com
       - key: GAME_CLIENT_RELEASE_TAG
-        value: game-client-v1.0.3
+        value: game-client-v1.0.4
 
   - type: web
     name: arcade-game-engine

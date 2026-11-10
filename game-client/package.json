@@ -1,8 +1,7 @@
-
 {
   "name": "game-client",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -11,13 +10,18 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "desktop": "pnpm run build && electron .",
-    "dist": "pnpm run build && electron-builder --win nsis"
+    "dist": "pnpm run build && electron-builder --win nsis",
+    "android:sync": "pnpm run build && cap sync android",
+    "android:apk": "pnpm run android:sync && cd android && gradlew.bat assembleDebug"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
