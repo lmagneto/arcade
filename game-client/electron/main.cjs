@@ -1,11 +1,60 @@
 
 const { app, BrowserWindow, ipcMain } = require("electron");
 const { createHash } = require("node:crypto");
+const { existsSync } = require("node:fs");
 const { writeFile, unlink } = require("node:fs/promises");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 
 let updateStarted = false;
+let mouseBridgeProcess;
+
+async function startMouseBridge() {
+  if (!app.isPackaged || process.platform !== "win32") return;
+
+  try {
+    const response = await fetch("http://127.0.0.1:8765/health", {
+      signal: AbortSignal.timeout(1000),
+    });
+    const health = await response.json();
+
+    if (
+      response.ok &&
+      health.status === "ok" &&
+      health.service === "arcade-mouse-event-bridge"
+    ) {
+      return;
+    }
+
+    console.error("An unexpected service is using the mouse bridge port.");
+    return;
+  } catch {
+    // The local service is normally absent on startup.
+  }
+
+  const bridgePath = path.join(
+    process.resourcesPath,
+    "mouse-bridge",
+    "mouse_event_bridge.exe",
+  );
+  if (!existsSync(bridgePath)) {
+    console.error(`Packaged mouse bridge not found: ${bridgePath}`);
+    return;
+  }
+
+  mouseBridgeProcess = spawn(bridgePath, ["--hidden"], {
+    stdio: "ignore",
+    windowsHide: true,
+  });
+  mouseBridgeProcess.once("error", (error) => {
+    console.error("Unable to start the mouse event bridge:", error);
+  });
+  mouseBridgeProcess.once("exit", (code) => {
+    if (code !== 0 && code !== null) {
+      console.error(`Mouse event bridge exited with code ${code}.`);
+    }
+  });
+}
 
 function powershellLiteral(value) {
   return `'${value.replaceAll("'", "''")}'`;
@@ -139,6 +188,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  void startMouseBridge();
   createWindow();
 
   app.on("activate", () => {
@@ -146,6 +196,10 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
+});
+
+app.on("before-quit", () => {
+  mouseBridgeProcess?.kill();
 });
 
 app.on("window-all-closed", () => {

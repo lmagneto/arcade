@@ -2,7 +2,7 @@
 {
   "name": "game-client",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -43,6 +43,12 @@
       "dist/**/*",
       "electron/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/mouse-bridge/mouse_event_bridge",
+        "to": "mouse-bridge"
+      }
     ],
     "win": {
       "target": "nsis"

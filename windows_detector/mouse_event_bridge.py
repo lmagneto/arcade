@@ -1,5 +1,5 @@
 
-"""ARCADE Windows Raw Input mouse-event bridge.
+r"""ARCADE Windows Raw Input mouse-event bridge.
 
 Run from the project root:
     venv\Scripts\python.exe windows_detector\mouse_event_bridge.py
@@ -15,6 +15,7 @@ This is a local development bridge, not a production security boundary.
 
 import ctypes
 import json
+import sys
 import threading
 import time
 from collections import deque
@@ -542,9 +543,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
         }, 404)
 
     def log_message(self, fmt, *args):
-        # Avoid logging every polling request.
-        if urlparse(self.path).path != "/health":
-            super().log_message(fmt, *args)
+        return
 
 
 def run_http_server():
@@ -621,8 +620,9 @@ def main():
     print("Endpoints: /health, /devices, /events?since=0", flush=True)
     print("Close the bridge window to stop.", flush=True)
 
-    win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
-    win32gui.UpdateWindow(hwnd)
+    if "--hidden" not in sys.argv:
+        win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
+        win32gui.UpdateWindow(hwnd)
     win32gui.PumpMessages()
 
 

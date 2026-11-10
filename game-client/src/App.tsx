@@ -22,6 +22,9 @@ import {
 import type { JackpotInfo } from "./arcade/types";
 const INSTALLATION_KEY = "arcade-installation-id";
 const CREDENTIAL_KEY = "arcade-device-credential";
+const MOUSE_BRIDGE_BASE_URL = import.meta.env.DEV
+  ? "/mouse-bridge"
+  : "http://127.0.0.1:8765";
 
 function getInstallationId(): string {
   let id = localStorage.getItem(INSTALLATION_KEY);
@@ -469,9 +472,12 @@ useEffect(() => {
 
       try {
         // 1. Read the physical mice detected by Windows Raw Input.
-        const devicesResponse = await fetch("/mouse-bridge/devices", {
-          cache: "no-store",
-        });
+        const devicesResponse = await fetch(
+          `${MOUSE_BRIDGE_BASE_URL}/devices`,
+          {
+            cache: "no-store",
+          },
+        );
 
         if (!devicesResponse.ok) {
           throw new Error(
@@ -508,7 +514,7 @@ if (count !== lastSyncedCount) {
 
         // 2. Read new events, preserving each event's player slot.
         const eventsResponse = await fetch(
-          `/mouse-bridge/events?since=${lastEventId}`,
+          `${MOUSE_BRIDGE_BASE_URL}/events?since=${lastEventId}`,
           { cache: "no-store" },
         );
 

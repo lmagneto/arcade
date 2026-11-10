@@ -58,6 +58,10 @@ workflow builds and publishes the installer and its SHA-256 manifest. The
 client downloads and verifies the installer through the manifest, then
 silently installs and restarts at the next non-running round.
 
+The Windows installer includes and starts the Raw Input mouse bridge locally.
+Move each physical mouse once after launching the client to assign its player
+slot; the bridge is stopped when the client exits.
+
 The application also accepts `DATABASE_URL` locally; the existing `DB_NAME`,
 `DB_USER`, `DB_PASSWORD`, `DB_HOST`, and `DB_PORT` settings remain supported.
 # arcade
