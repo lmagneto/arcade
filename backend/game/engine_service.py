@@ -28,6 +28,7 @@ def _run_engine():
             if not engine_ready.is_set():
                 logger.info("Applying database migrations for the game engine.")
                 call_command("migrate", interactive=False)
+                call_command("initialize_platform")
                 engine_ready.set()
                 logger.info("Database migrations completed for the game engine.")
 

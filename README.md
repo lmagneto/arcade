@@ -30,6 +30,19 @@ To deploy:
 The frontend's `VITE_API_URL` is set to the API service's public URL;
 the client adds `/api` when making requests.
 
+For initial setup, set `BOOTSTRAP_ADMIN_USERNAME`,
+`BOOTSTRAP_ADMIN_EMAIL`, and `BOOTSTRAP_ADMIN_PASSWORD` as temporary API
+service environment variables in Render. The API startup command creates the
+platform superuser once, marks it as a platform administrator, and requires a
+password change. After the deploy logs confirm creation, remove all three
+variables and redeploy; the command will not reset or modify the existing
+administrator. Keep the password out of source control and chat.
+
+After migrations complete, the game engine initializes the zero-balance
+platform reserve wallet before it starts creating rounds. The engine creates
+rounds continuously while it is running; Render's free plan may spin it down
+after inactivity.
+
 The application also accepts `DATABASE_URL` locally; the existing `DB_NAME`,
 `DB_USER`, `DB_PASSWORD`, `DB_HOST`, and `DB_PORT` settings remain supported.
 # arcade

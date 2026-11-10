@@ -12,7 +12,7 @@ services:
     region: frankfurt
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2
+    startCommand: python manage.py bootstrap_admin && unset BOOTSTRAP_ADMIN_USERNAME BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2
     envVars:
       - fromGroup: arcade-shared
       - key: DEBUG
