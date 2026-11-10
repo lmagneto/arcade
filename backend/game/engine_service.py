@@ -60,18 +60,17 @@ def _ensure_engine_thread():
 
 def application(environ, start_response):
     path = environ.get("PATH_INFO")
-    if path in {"/health/", "/ready/"}:
-        thread = _ensure_engine_thread()
+    thread = engine_thread
 
     if path == "/health/":
-        if thread.is_alive():
-            status = "200 OK"
-            body = b"Game engine process is running."
-        else:
-            status = "503 Service Unavailable"
-            body = b"Game engine process is not running."
+        status = "200 OK"
+        body = b"Game engine web application is running."
     elif path == "/ready/":
-        if engine_ready.is_set() and thread.is_alive():
+        if (
+            engine_ready.is_set()
+            and thread is not None
+            and thread.is_alive()
+        ):
             status = "200 OK"
             body = b"Game engine is ready."
         else:
@@ -89,3 +88,9 @@ def application(environ, start_response):
         ],
     )
     return [body]
+
+
+# Start the controller with the WSGI worker, not as a side effect of a
+# health-check request. The controller's database advisory lock prevents a
+# second process from controlling rounds during overlapping deployments.
+_ensure_engine_thread()

@@ -70,5 +70,32 @@ the earlier version first. APKs are not installable on Tizen or webOS TVs.
 
 The application also accepts `DATABASE_URL` locally; the existing `DB_NAME`,
 `DB_USER`, `DB_PASSWORD`, `DB_HOST`, and `DB_PORT` settings remain supported.
+
+### Keeping the Render game engine awake
+
+The backend starts a best-effort keep-alive monitor from its WSGI workers. It
+uses the existing `GAME_ENGINE_URL`, checks the engine's `/health/` endpoint
+every five minutes, applies short retries with backoff, and coordinates backend
+workers using a PostgreSQL advisory lock. No Celery, Redis, or new environment
+variables are required. The API's Free instance can also sleep, so this monitor
+cannot guarantee the engine stays awake by itself.
+
+Configure an independent external uptime monitor (for example, UptimeRobot) to
+send an HTTP GET every five minutes to:
+
+`https://arcade-game-engine.onrender.com/health/`
+
+In UptimeRobot, create an HTTP(s) monitor using that URL and set its monitoring
+interval to five minutes. A `200` response indicates the engine web process is
+reachable; `/ready/` remains the controller-readiness endpoint. Do not monitor
+`/ready/` for the keep-alive check because it reports application readiness
+rather than just web-process health.
+
+On Render, keep the engine's existing internal health check path set to
+`/health/` and deploy the backend and engine from the updated Blueprint. Render
+internal checks are for service health and do not replace the external monitor
+on a Free plan. No production database reset or additional service is needed.
+After deploying, verify both the external monitor's `200` response and the
+engine logs for the controller-start/recovery messages and subsequent rounds.
 # arcade
 # arcade
