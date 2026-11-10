@@ -27,7 +27,7 @@ To deploy:
    migrations before starting the round controller; verify its readiness at
    `/ready/`.
 
-The frontend's `VITE_API_URL` is sourced from the API service's public URL;
+The frontend's `VITE_API_URL` is set to the API service's public URL;
 the client adds `/api` when making requests.
 
 The application also accepts `DATABASE_URL` locally; the existing `DB_NAME`,

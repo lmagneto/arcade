@@ -50,7 +50,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: arcade-api
-          property: url
+        value: https://arcade-api-44d6.onrender.com
