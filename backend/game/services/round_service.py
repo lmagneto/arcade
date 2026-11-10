@@ -26,7 +26,7 @@ def generate_crash_multiplier():
     """
     minimum = MIN_CRASH_MULTIPLIER
     maximum = MAX_CRASH_MULTIPLIER
-    decay = Decimal("0.30")
+    decay = Decimal("0.50")
 
     # Generate a high-resolution uniform random value in [0, 1).
     random_value = Decimal(secrets.randbelow(10**12)) / Decimal(10**12)
