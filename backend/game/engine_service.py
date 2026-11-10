@@ -1,21 +1,30 @@
 import logging
 import os
+import signal
 import threading
 import time
+from datetime import timedelta
 
 import django
 from django.core.management import call_command
+from django.utils import timezone
 
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 logger = logging.getLogger(__name__)
+CONTROLLER_HEARTBEAT_TIMEOUT_SECONDS = 30
+CONTROLLER_WATCH_INTERVAL_SECONDS = 5
 engine_ready = threading.Event()
 engine_thread: threading.Thread | None = None
 engine_thread_lock = threading.Lock()
+watchdog_thread: threading.Thread | None = None
+controller_started_at: float | None = None
 
 
 def _run_engine():
+    global controller_started_at
+
     django_initialized = False
     while True:
         try:
@@ -37,6 +46,7 @@ def _run_engine():
                 )
 
             logger.warning("Game engine startup: starting the round controller.")
+            controller_started_at = time.monotonic()
             call_command("run_game")
             logger.warning("Game controller exited; retrying in 5 seconds.")
         except Exception:
@@ -46,8 +56,53 @@ def _run_engine():
         time.sleep(5)
 
 
+def _controller_heartbeat_is_stale() -> bool:
+    if not engine_ready.is_set() or controller_started_at is None:
+        return False
+
+    if (
+        time.monotonic() - controller_started_at
+        < CONTROLLER_HEARTBEAT_TIMEOUT_SECONDS
+    ):
+        return False
+
+    from django.db import DatabaseError, close_old_connections
+    from game.models import GameEngineHeartbeat
+
+    try:
+        close_old_connections()
+        heartbeat = GameEngineHeartbeat.objects.filter(pk=1).first()
+    except DatabaseError:
+        logger.exception("Could not read the game controller heartbeat.")
+        return False
+    finally:
+        close_old_connections()
+
+    return (
+        heartbeat is None
+        or not heartbeat.is_running
+        or timezone.now() - heartbeat.last_heartbeat_at
+        > timedelta(seconds=CONTROLLER_HEARTBEAT_TIMEOUT_SECONDS)
+    )
+
+
+def _watch_controller():
+    while True:
+        time.sleep(CONTROLLER_WATCH_INTERVAL_SECONDS)
+        if not _controller_heartbeat_is_stale():
+            continue
+
+        logger.critical(
+            "Game controller heartbeat has been stale for at least %s "
+            "seconds; restarting the Gunicorn worker.",
+            CONTROLLER_HEARTBEAT_TIMEOUT_SECONDS,
+        )
+        os.kill(os.getpid(), signal.SIGTERM)
+        return
+
+
 def _ensure_engine_thread():
-    global engine_thread
+    global engine_thread, watchdog_thread
 
     with engine_thread_lock:
         if engine_thread is None or not engine_thread.is_alive():
@@ -60,6 +115,13 @@ def _ensure_engine_thread():
             engine_thread.start()
 
         assert engine_thread is not None
+        if watchdog_thread is None or not watchdog_thread.is_alive():
+            watchdog_thread = threading.Thread(
+                target=_watch_controller,
+                name="game-controller-watchdog",
+                daemon=True,
+            )
+            watchdog_thread.start()
     return engine_thread
 
 
