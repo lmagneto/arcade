@@ -20,17 +20,21 @@ def _run_engine():
     while True:
         try:
             if not django_initialized:
-                logger.info("Initializing Django for the game engine.")
+                logger.warning("Game engine startup: initializing Django.")
                 django.setup()
                 django_initialized = True
-                logger.info("Django initialized for the game engine.")
+                logger.warning("Game engine startup: Django initialized.")
 
             if not engine_ready.is_set():
-                logger.info("Applying database migrations for the game engine.")
+                logger.warning("Game engine startup: applying database migrations.")
                 call_command("migrate", interactive=False)
+                logger.warning("Game engine startup: initializing platform.")
                 call_command("initialize_platform")
                 engine_ready.set()
-                logger.info("Database migrations completed for the game engine.")
+                logger.warning(
+                    "Game engine startup: database and platform initialization "
+                    "completed."
+                )
 
             call_command("run_game")
             logger.warning("Game controller exited; retrying in 5 seconds.")
