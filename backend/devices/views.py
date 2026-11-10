@@ -1,7 +1,10 @@
-from rest_framework.permissions import IsAuthenticated
+import logging
+import re
 from uuid import UUID
 from devices.authentication import DeviceCredentialAuthentication
+from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.cache import cache
 from rest_framework import status
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
@@ -9,6 +12,8 @@ from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 from django.db import transaction
 from django.utils import timezone
+from packaging.version import InvalidVersion, Version
+import requests
 from devices.services.activation import (
     activate_installation,
     create_activation_request,
@@ -16,6 +21,10 @@ from devices.services.activation import (
 )
 from devices.models import DeviceActivationRequest, DeviceInstallation
 from tenants.models import MajorAccount
+
+logger = logging.getLogger(__name__)
+CLIENT_UPDATE_CACHE_SECONDS = 300
+CLIENT_UPDATE_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 class IsPlatformAdministrator(BasePermission):
@@ -137,6 +146,170 @@ class DeviceStatusView(APIView):
             "major_account_name": major_account.name,
             "major_account_status": major_account.status,
         })
+
+
+class ClientUpdateView(APIView):
+    authentication_classes = [DeviceCredentialAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        client_version = request.query_params.get("version", "")
+        try:
+            installed_version = Version(client_version)
+        except InvalidVersion:
+            return Response(
+                {"detail": "A valid client version query parameter is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        release_tag = settings.GAME_CLIENT_RELEASE_TAG
+        if not release_tag:
+            return Response(
+                {"detail": "The game client release tag is not configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        manifest = cache.get(f"arcade-client-update:{release_tag}")
+        if manifest is None:
+            manifest = self.fetch_manifest(release_tag)
+            if isinstance(manifest, Response):
+                return manifest
+            cache.set(
+                f"arcade-client-update:{release_tag}",
+                manifest,
+                CLIENT_UPDATE_CACHE_SECONDS,
+            )
+
+        try:
+            latest_version = Version(manifest["version"])
+        except (InvalidVersion, KeyError, TypeError):
+            logger.error("The configured game client update manifest is invalid.")
+            return Response(
+                {"detail": "The game client update manifest is invalid."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return Response({
+            "update_available": latest_version > installed_version,
+            "version": str(latest_version),
+            "download_url": manifest["download_url"],
+            "sha256": manifest["sha256"],
+        })
+
+    @staticmethod
+    def fetch_manifest(release_tag):
+        release_url = (
+            "https://api.github.com/repos/lmagneto/arcade/releases/tags/"
+            f"{release_tag}"
+        )
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "arcade-client-updater",
+        }
+        try:
+            release_response = requests.get(
+                release_url,
+                headers=headers,
+                timeout=(3, 5),
+            )
+            release_response.raise_for_status()
+            release = release_response.json()
+            if (
+                not isinstance(release, dict)
+                or release.get("tag_name") != release_tag
+                or not isinstance(release.get("assets"), list)
+            ):
+                raise ValueError("The release tag does not match configuration.")
+            manifest_asset = next(
+                asset
+                for asset in release["assets"]
+                if isinstance(asset, dict)
+                and asset.get("name") == "client-update.json"
+            )
+            manifest_url = manifest_asset.get("browser_download_url")
+            expected_manifest_url = (
+                "https://github.com/lmagneto/arcade/releases/download/"
+                f"{release_tag}/"
+            )
+            if (
+                not isinstance(manifest_url, str)
+                or not manifest_url.startswith(expected_manifest_url)
+            ):
+                raise ValueError("The release manifest URL is invalid.")
+            manifest_response = requests.get(
+                manifest_url,
+                headers={"User-Agent": "arcade-client-updater"},
+                timeout=(3, 5),
+            )
+            manifest_response.raise_for_status()
+            manifest = manifest_response.json()
+        except (requests.RequestException, KeyError, StopIteration, ValueError):
+            logger.exception(
+                "Could not load the game client update manifest for tag %s.",
+                release_tag,
+            )
+            return Response(
+                {"detail": "No valid game client update is available."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        if not isinstance(manifest, dict):
+            logger.error("The game client update manifest is not an object.")
+            return Response(
+                {"detail": "The game client update manifest is invalid."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        version = manifest.get("version")
+        download_url = manifest.get("download_url")
+        sha256 = manifest.get("sha256")
+        expected_prefix = (
+            "https://github.com/lmagneto/arcade/releases/download/"
+            f"{release_tag}/"
+        )
+        if (
+            not isinstance(version, str)
+            or not isinstance(download_url, str)
+            or not isinstance(sha256, str)
+            or not CLIENT_UPDATE_SHA256.fullmatch(sha256)
+            or not download_url.startswith(expected_prefix)
+            or not download_url.lower().endswith(".exe")
+        ):
+            logger.error(
+                "The game client update manifest for tag %s failed validation.",
+                release_tag,
+            )
+            return Response(
+                {"detail": "The game client update manifest is invalid."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        try:
+            parsed_version = Version(version)
+        except InvalidVersion:
+            logger.error(
+                "The game client update manifest has an invalid version."
+            )
+            return Response(
+                {"detail": "The game client update manifest is invalid."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        if release_tag != f"game-client-v{parsed_version}":
+            logger.error(
+                "The game client update version does not match release tag %s.",
+                release_tag,
+            )
+            return Response(
+                {"detail": "The game client update manifest is invalid."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return {
+            "version": version,
+            "download_url": download_url,
+            "sha256": sha256.lower(),
+        }
 
 class CreatePCPairingRequestView(APIView):
     permission_classes = [AllowAny]
@@ -292,5 +465,3 @@ class PCPairingStatusView(APIView):
             "status": "APPROVED",
             "installation_id": str(activation_request.installation_id),
         })
-
-

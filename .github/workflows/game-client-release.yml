@@ -1,0 +1,71 @@
+name: Publish game client update
+
+on:
+  push:
+    tags:
+      - "game-client-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  package-and-release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: game-client
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: game-client/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Windows installer
+        run: pnpm run dist
+
+      - name: Create update manifest
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $expectedVersion = $tag -replace '^game-client-v', ''
+          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($expectedVersion -ne $packageVersion) {
+            throw "Release tag version $expectedVersion does not match package version $packageVersion."
+          }
+
+          $installers = @(Get-ChildItem release -File -Filter '*.exe')
+          if ($installers.Count -ne 1) {
+            throw "Expected one Windows installer, found $($installers.Count)."
+          }
+
+          $installer = $installers[0]
+          $checksum = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $encodedName = [uri]::EscapeDataString($installer.Name)
+          $manifest = [ordered]@{
+            version = $packageVersion
+            download_url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$tag/$encodedName"
+            sha256 = $checksum
+          }
+          $manifestPath = Join-Path $PWD 'release/client-update.json'
+          $manifest | ConvertTo-Json -Compress | Set-Content -Path $manifestPath -Encoding utf8NoBOM
+          "INSTALLER_PATH=$($installer.FullName)" >> $env:GITHUB_ENV
+          "UPDATE_MANIFEST_PATH=$manifestPath" >> $env:GITHUB_ENV
+          "UPDATE_TAG=$tag" >> $env:GITHUB_ENV
+
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$env:UPDATE_TAG" "$env:INSTALLER_PATH" "$env:UPDATE_MANIFEST_PATH" `
+            --title "ARCADE Game Client $((Get-Content package.json -Raw | ConvertFrom-Json).version)" `
+            --notes "Automated ARCADE desktop client update."

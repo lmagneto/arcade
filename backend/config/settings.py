@@ -185,6 +185,7 @@ MAILERS = {
 AUTH_USER_MODEL = "accounts.User"
 
 GAME_ENGINE_URL = os.getenv("GAME_ENGINE_URL", "").rstrip("/")
+GAME_CLIENT_RELEASE_TAG = os.getenv("GAME_CLIENT_RELEASE_TAG", "").strip()
 
 
 

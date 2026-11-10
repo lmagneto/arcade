@@ -46,6 +46,14 @@ endpoint when its heartbeat is stale, waking the engine on demand. The client
 may briefly show that the engine is starting while a free service wakes and
 reinitializes.
 
+The Windows game client checks `/api/devices/client-update/` with its active
+device credential. To publish an update, increment `game-client/package.json`,
+set `GAME_CLIENT_RELEASE_TAG` in `render.yaml` to the corresponding
+`game-client-v<version>` tag, then push that tag. The Windows GitHub Actions
+workflow builds and publishes the installer and its SHA-256 manifest. The
+client downloads and verifies the installer through the manifest, then
+silently installs and restarts at the next non-running round.
+
 The application also accepts `DATABASE_URL` locally; the existing `DB_NAME`,
 `DB_USER`, `DB_PASSWORD`, `DB_HOST`, and `DB_PORT` settings remain supported.
 # arcade

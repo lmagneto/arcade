@@ -1,15 +1,17 @@
 import { ArcadeGame } from "./arcade/ArcadeGame";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   activateDevice,
   createPairingRequest,
   fetchCurrentRound,
   fetchPairingStatus,
   fetchEngineHealth,
+  fetchClientUpdate,
   fetchJackpots,
   verifyDeviceCredential,
   type CurrentRound,
   type EngineHealth,
+  type ClientUpdate,
   type PlayerStation,
   type PlayerBetInfo,
   fetchPlayerStations,
@@ -45,6 +47,9 @@ function App() {
   const [round, setRound] = useState<CurrentRound | null>(null);
   const [accountName, setAccountName] = useState("");
   const [health, setHealth] = useState<EngineHealth | null>(null);
+  const [pendingClientUpdate, setPendingClientUpdate] =
+    useState<ClientUpdate | null>(null);
+  const updateApplying = useRef(false);
   const [busy, setBusy] = useState(false);
   const [players, setPlayers] = useState<PlayerStation[]>([]);
   const [bets, setBets] = useState<PlayerBetInfo[]>([]);
@@ -306,6 +311,62 @@ useEffect(() => {
       window.clearInterval(timer);
     };
   }, [deviceCredential]);
+
+  useEffect(() => {
+    if (!deviceCredential || !window.arcadeUpdater) return;
+
+    let cancelled = false;
+    let checking = false;
+
+    async function checkForClientUpdate() {
+      if (checking || cancelled) return;
+      checking = true;
+
+      try {
+        const update = await fetchClientUpdate(deviceCredential);
+        if (!cancelled && update.update_available) {
+          setPendingClientUpdate(update);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Unable to check for game client updates:", error);
+        }
+      } finally {
+        checking = false;
+      }
+    }
+
+    void checkForClientUpdate();
+    const timer = window.setInterval(
+      () => void checkForClientUpdate(),
+      10 * 60 * 1000,
+    );
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [deviceCredential]);
+
+  useEffect(() => {
+    if (
+      !pendingClientUpdate ||
+      !round ||
+      round.status === "RUNNING" ||
+      !window.arcadeUpdater ||
+      updateApplying.current
+    ) {
+      return;
+    }
+
+    updateApplying.current = true;
+    void window.arcadeUpdater
+      .installUpdate(pendingClientUpdate)
+      .catch((error: unknown) => {
+        updateApplying.current = false;
+        console.error("Unable to install game client update:", error);
+      });
+  }, [pendingClientUpdate, round]);
 
   useEffect(() => {
     if (!deviceCredential) return;

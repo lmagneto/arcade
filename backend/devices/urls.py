@@ -13,6 +13,7 @@ from devices.player_views import (
     SyncPlayerSlotsView,
     DevicePlayerSlotListView,
 )
+from devices.views import ClientUpdateView
 
 app_name = "devices"
 
@@ -52,6 +53,11 @@ urlpatterns = [
         "status/",
         DeviceStatusView.as_view(),
         name="device-status",
+    ),
+    path(
+        "client-update/",
+        ClientUpdateView.as_view(),
+        name="client-update",
     ),
 
 path(

@@ -30,6 +30,14 @@
 .vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 45%, transparent 55%, #00020a99 100%); }
 .logo { position: absolute; left: 255px; top: 140px; width: 360px; filter: drop-shadow(0 0 16px #8a4bffcc); animation: bob 5s ease-in-out infinite; }
 @keyframes bob { 50% { transform: translateY(-6px) rotate(-1deg); } }
+.plane-sound-toggle { position: absolute; z-index: 3; top: 140px; right: 24px; display: flex; align-items: center; gap: 8px;
+  min-width: 126px; padding: 9px 13px; border: 1px solid #78bcff88; border-radius: 999px;
+  background: linear-gradient(135deg, #102758e8, #07122be8); color: #d7edff; cursor: pointer;
+  box-shadow: 0 0 14px #2b8fff55, inset 0 0 10px #5bb4ff1c; font: 700 15px/1 'Rajdhani', Arial, sans-serif;
+  letter-spacing: 1px; }
+.plane-sound-toggle:hover { border-color: #9cdeff; box-shadow: 0 0 19px #2b8fff99, inset 0 0 12px #5bb4ff33; }
+.plane-sound-toggle:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.plane-sound-toggle svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
 /* Rocket */
 .rocket__flame { opacity: 0; transition: opacity .3s; }

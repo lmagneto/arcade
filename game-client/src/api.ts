@@ -1,4 +1,14 @@
 import type { JackpotInfo } from './arcade/types';
+
+const API_ORIGIN =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? "" : "https://arcade-api-44d6.onrender.com");
+const API_BASE_URL = `${API_ORIGIN.replace(/\/+$/, "")}/api`;
+
+function apiUrl(path: string): string {
+  return `${API_BASE_URL}${path}`;
+}
+
 export type RoundStatus =
   | "WAITING"
   | "RUNNING"
@@ -53,7 +63,7 @@ export interface DeviceStatus {
 export async function verifyDeviceCredential(
   deviceCredential: string,
 ): Promise<DeviceStatus> {
-  const response = await fetch("/api/devices/status/", {
+  const response = await fetch(apiUrl("/devices/status/"), {
     method: "GET",
     headers: {
       Authorization: `Device ${deviceCredential}`,
@@ -94,7 +104,7 @@ async function readResponse<T>(response: Response): Promise<T> {
 export async function createPairingRequest(
   installationId: string,
 ): Promise<PairingRequest> {
-  const response = await fetch("/api/devices/pairing-requests/", {
+  const response = await fetch(apiUrl("/devices/pairing-requests/"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ installation_id: installationId }),
@@ -107,7 +117,7 @@ export async function fetchPairingStatus(
   installationId: string,
 ): Promise<PairingStatusResponse> {
   const response = await fetch(
-    `/api/devices/pairing-requests/status/?installation_id=${encodeURIComponent(installationId)}`,
+    apiUrl(`/devices/pairing-requests/status/?installation_id=${encodeURIComponent(installationId)}`),
     { cache: "no-store" },
   );
 
@@ -118,7 +128,7 @@ export async function activateDevice(
   installationId: string,
   pairingCode: string,
 ): Promise<DeviceActivation> {
-  const response = await fetch("/api/devices/activate/", {
+  const response = await fetch(apiUrl("/devices/activate/"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -134,7 +144,7 @@ export async function activateDevice(
 export async function fetchCurrentRound(
   deviceCredential: string,
 ): Promise<CurrentRoundResponse> {
-  const response = await fetch("/api/game/rounds/current/", {
+  const response = await fetch(apiUrl("/game/rounds/current/"), {
     method: "GET",
     headers: {
       Authorization: `Device ${deviceCredential}`,
@@ -171,7 +181,7 @@ function isEngineHealth(data: unknown): data is EngineHealth {
 export async function fetchEngineHealth(
   deviceCredential: string,
 ): Promise<EngineHealth> {
-  const response = await fetch("/api/game/engine/health/", {
+  const response = await fetch(apiUrl("/game/engine/health/"), {
     method: "GET",
     headers: {
       Authorization: `Device ${deviceCredential}`,
@@ -207,7 +217,7 @@ export async function syncPlayerStations(
   deviceCredential: string,
   detectedCount: number,
 ): Promise<PlayerStationsResponse> {
-  const response = await fetch("/api/devices/player-slots/sync/", {
+  const response = await fetch(apiUrl("/devices/player-slots/sync/"), {
     method: "POST",
     headers: {
       Authorization: `Device ${deviceCredential}`,
@@ -240,7 +250,7 @@ export interface PlayerStationsResponse {
 export async function fetchPlayerStations(
   deviceCredential: string,
 ): Promise<PlayerStationsResponse> {
-  const response = await fetch("/api/devices/player-slots/", {
+  const response = await fetch(apiUrl("/devices/player-slots/"), {
     method: "GET",
     headers: {
       Authorization: `Device ${deviceCredential}`,
@@ -267,7 +277,7 @@ export interface PlayerBetInfo {
 export async function fetchCurrentBets(
   deviceCredential: string,
 ): Promise<{ bets: PlayerBetInfo[] }> {
-  const response = await fetch("/api/game/bets/current/", {
+  const response = await fetch(apiUrl("/game/bets/current/"), {
     method: "GET",
     headers: {
       Authorization: `Device ${deviceCredential}`,
@@ -291,7 +301,7 @@ export async function placeBet(
   slotNumber: number,
   amount: string,
 ): Promise<BetActionResponse> {
-  const response = await fetch("/api/game/bets/", {
+  const response = await fetch(apiUrl("/game/bets/"), {
     method: "POST",
     headers: {
       Authorization: `Device ${deviceCredential}`,
@@ -310,7 +320,7 @@ export async function cashOutBet(
   deviceCredential: string,
   slotNumber: number,
 ): Promise<BetActionResponse> {
-  const response = await fetch("/api/game/bets/cash-out/", {
+  const response = await fetch(apiUrl("/game/bets/cash-out/"), {
     method: "POST",
     headers: {
       Authorization: `Device ${deviceCredential}`,
@@ -335,7 +345,7 @@ interface JackpotResponse {
 export async function fetchJackpots(
   deviceCredential: string,
 ): Promise<JackpotInfo[]> {
-  const response = await fetch("/api/game/jackpots/", {
+  const response = await fetch(apiUrl("/game/jackpots/"), {
     method: "GET",
     headers: {
       Authorization: `Device ${deviceCredential}`,
@@ -350,4 +360,28 @@ export async function fetchJackpots(
     ...jackpot,
     amount: Number(jackpot.amount),
   }));
+}
+
+export interface ClientUpdate {
+  update_available: boolean;
+  version: string;
+  download_url: string;
+  sha256: string;
+}
+
+export async function fetchClientUpdate(
+  deviceCredential: string,
+): Promise<ClientUpdate> {
+  const response = await fetch(
+    apiUrl(`/devices/client-update/?version=${encodeURIComponent(__APP_VERSION__)}`),
+    {
+      headers: {
+        Authorization: `Device ${deviceCredential}`,
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    },
+  );
+
+  return readResponse<ClientUpdate>(response);
 }
