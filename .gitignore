@@ -33,6 +33,7 @@ dist/
 build/
 release/
 out/
+backend/staticfiles/
 game-client/release/
 
 # Logs

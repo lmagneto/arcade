@@ -38,6 +38,10 @@ password change. After the deploy logs confirm creation, remove all three
 variables and redeploy; the command will not reset or modify the existing
 administrator. Keep the password out of source control and chat.
 
+The API build collects Django static assets for WhiteNoise, including the
+ARCADE-themed Django admin login and operations dashboard. Open `/admin/` on
+the API service to manage platform accounts and operations.
+
 After migrations complete, the game engine initializes the zero-balance
 platform reserve wallet before it starts creating rounds. The engine creates
 rounds continuously while it is running; Render's free plan may spin it down
