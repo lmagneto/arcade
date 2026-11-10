@@ -50,7 +50,8 @@ jobs:
 
           $installer = $installers[0]
           $checksum = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-          $encodedName = [uri]::EscapeDataString($installer.Name)
+          $downloadName = $installer.Name.Replace(' ', '.')
+          $encodedName = [uri]::EscapeDataString($downloadName)
           $manifest = [ordered]@{
             version = $packageVersion
             download_url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$tag/$encodedName"

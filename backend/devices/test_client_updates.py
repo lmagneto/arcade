@@ -7,7 +7,7 @@ from rest_framework.test import APIClient
 from devices.views import CLIENT_UPDATE_CACHE_SECONDS
 
 
-@override_settings(GAME_CLIENT_RELEASE_TAG="game-client-v1.0.1")
+@override_settings(GAME_CLIENT_RELEASE_TAG="game-client-v1.0.2")
 class ClientUpdateViewTests(TestCase):
     def setUp(self):
         user_model = get_user_model()
@@ -18,10 +18,10 @@ class ClientUpdateViewTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
         self.manifest = {
-            "version": "1.0.1",
+            "version": "1.0.2",
             "download_url": (
                 "https://github.com/lmagneto/arcade/releases/download/"
-                "game-client-v1.0.1/ARCADE%20Setup%201.0.1.exe"
+                "game-client-v1.0.2/ARCADE.Setup.1.0.2.exe"
             ),
             "sha256": "a" * 64,
         }
@@ -34,12 +34,12 @@ class ClientUpdateViewTests(TestCase):
     ):
         release_response = Mock()
         release_response.json.return_value = {
-            "tag_name": "game-client-v1.0.1",
+            "tag_name": "game-client-v1.0.2",
             "assets": [{
                 "name": "client-update.json",
                 "browser_download_url": (
                     "https://github.com/lmagneto/arcade/releases/download/"
-                    "game-client-v1.0.1/client-update.json"
+                    "game-client-v1.0.2/client-update.json"
                 ),
             }],
         }
@@ -52,12 +52,12 @@ class ClientUpdateViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["version"], "1.0.1")
+        self.assertEqual(response.data["version"], "1.0.2")
         self.assertTrue(response.data["update_available"])
         self.assertEqual(response.data["sha256"], "a" * 64)
-        cache_get.assert_called_once_with("arcade-client-update:game-client-v1.0.1")
+        cache_get.assert_called_once_with("arcade-client-update:game-client-v1.0.2")
         cache_set.assert_called_once_with(
-            "arcade-client-update:game-client-v1.0.1",
+            "arcade-client-update:game-client-v1.0.2",
             self.manifest,
             CLIENT_UPDATE_CACHE_SECONDS,
         )
@@ -67,7 +67,7 @@ class ClientUpdateViewTests(TestCase):
         cache_get.return_value = self.manifest
 
         response = self.client.get(
-            "/api/devices/client-update/?version=1.0.1"
+            "/api/devices/client-update/?version=1.0.2"
         )
 
         self.assertEqual(response.status_code, 200)
@@ -106,12 +106,12 @@ class ClientUpdateViewTests(TestCase):
     def test_rejects_untrusted_update_url(self, get, _cache_get):
         release_response = Mock()
         release_response.json.return_value = {
-            "tag_name": "game-client-v1.0.1",
+            "tag_name": "game-client-v1.0.2",
             "assets": [{
                 "name": "client-update.json",
                 "browser_download_url": (
                     "https://github.com/lmagneto/arcade/releases/download/"
-                    "game-client-v1.0.1/client-update.json"
+                    "game-client-v1.0.2/client-update.json"
                 ),
             }],
         }
