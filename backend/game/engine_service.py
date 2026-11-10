@@ -36,6 +36,7 @@ def _run_engine():
                     "completed."
                 )
 
+            logger.warning("Game engine startup: starting the round controller.")
             call_command("run_game")
             logger.warning("Game controller exited; retrying in 5 seconds.")
         except Exception:
