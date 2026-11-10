@@ -21,6 +21,8 @@ services:
         sync: false
       - key: DATABASE_URL
         sync: false
+      - key: GAME_ENGINE_URL
+        value: https://arcade-game-engine.onrender.com
 
   - type: web
     name: arcade-game-engine

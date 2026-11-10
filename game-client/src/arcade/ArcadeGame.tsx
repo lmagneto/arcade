@@ -163,7 +163,9 @@ export function ArcadeGame({
   );
 
   const notice = health && !health.healthy
-    ? 'Engine unavailable'
+    ? health.status === 'STARTING'
+      ? 'Engine starting - please wait'
+      : 'Engine unavailable'
     : actionError || message;
 
   return (

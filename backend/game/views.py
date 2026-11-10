@@ -1,4 +1,10 @@
 
+import logging
+from datetime import timedelta
+
+import requests
+from django.conf import settings
+from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -6,6 +12,8 @@ from rest_framework.views import APIView
 from devices.authentication import DeviceCredentialAuthentication
 from game.models import GameEngineHeartbeat, GameRound
 from game.services.round_service import get_display_multiplier
+
+logger = logging.getLogger(__name__)
 
 
 class CurrentGameRoundView(APIView):
@@ -64,40 +72,84 @@ class CurrentGameRoundView(APIView):
         })
 
 
-from datetime import timedelta
-
-from django.utils import timezone
-
-
 class GameEngineHealthView(APIView):
     authentication_classes = [DeviceCredentialAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         heartbeat = GameEngineHeartbeat.objects.filter(pk=1).first()
+        if self.heartbeat_is_fresh(heartbeat):
+            return self.healthy_response(heartbeat)
 
-        if heartbeat is None:
+        engine_url = settings.GAME_ENGINE_URL
+        if not engine_url:
             return Response(
                 {
                     "healthy": False,
-                    "status": "UNKNOWN",
-                    "detail": "No engine heartbeat has been recorded.",
+                    "status": "UNAVAILABLE",
+                    "detail": "The game engine service URL is not configured.",
                 },
                 status=503,
             )
 
-        heartbeat_is_fresh = (
-            timezone.now() - heartbeat.last_heartbeat_at
-            <= timedelta(seconds=10)
+        try:
+            readiness = requests.get(
+                f"{engine_url}/ready/",
+                timeout=3,
+            )
+        except requests.RequestException:
+            logger.warning(
+                "Could not reach the game engine readiness endpoint.",
+                exc_info=True,
+            )
+            status = "UNAVAILABLE"
+            detail = "Unable to reach the game engine service."
+        else:
+            if readiness.status_code in (200, 503):
+                status = "STARTING"
+                detail = "The game engine is waking up; check again shortly."
+            else:
+                status = "UNAVAILABLE"
+                detail = (
+                    "The game engine readiness endpoint returned "
+                    f"HTTP {readiness.status_code}."
+                )
+
+        heartbeat = GameEngineHeartbeat.objects.filter(pk=1).first()
+        if self.heartbeat_is_fresh(heartbeat):
+            return self.healthy_response(heartbeat)
+
+        return Response(
+            {
+                "healthy": False,
+                "status": status,
+                "detail": detail,
+                "last_heartbeat_at": (
+                    heartbeat.last_heartbeat_at.isoformat()
+                    if heartbeat is not None else None
+                ),
+            },
+            status=503,
         )
 
-        healthy = heartbeat.is_running and heartbeat_is_fresh
+    @staticmethod
+    def heartbeat_is_fresh(heartbeat):
+        if (
+            heartbeat is None
+            or not heartbeat.is_running
+            or timezone.now() - heartbeat.last_heartbeat_at
+            > timedelta(seconds=10)
+        ):
+            return False
+        return True
 
+    @staticmethod
+    def healthy_response(heartbeat):
         return Response({
-            "healthy": healthy,
-            "status": "RUNNING" if healthy else "UNAVAILABLE",
+            "healthy": True,
+            "status": "RUNNING",
             "last_heartbeat_at": heartbeat.last_heartbeat_at.isoformat(),
-        }, status=200 if healthy else 503)
+        })
 
 
 # ---------------------------------------------------------------------------

@@ -148,9 +148,24 @@ export async function fetchCurrentRound(
 
 export interface EngineHealth {
   healthy: boolean;
-  status: "RUNNING" | "UNAVAILABLE" | "UNKNOWN";
+  status: "RUNNING" | "STARTING" | "UNAVAILABLE" | "UNKNOWN";
   last_heartbeat_at?: string;
   detail?: string;
+}
+
+function isEngineHealth(data: unknown): data is EngineHealth {
+  if (typeof data !== "object" || data === null || !("status" in data)) {
+    return false;
+  }
+
+  return (
+    "healthy" in data &&
+    typeof data.healthy === "boolean" &&
+    (data.status === "RUNNING" ||
+      data.status === "STARTING" ||
+      data.status === "UNAVAILABLE" ||
+      data.status === "UNKNOWN")
+  );
 }
 
 export async function fetchEngineHealth(
@@ -164,6 +179,11 @@ export async function fetchEngineHealth(
     },
     cache: "no-store",
   });
+
+  const data: unknown = await response.clone().json().catch(() => null);
+  if (response.status === 503 && isEngineHealth(data)) {
+    return data;
+  }
 
   return readResponse<EngineHealth>(response);
 }

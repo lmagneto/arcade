@@ -184,6 +184,8 @@ MAILERS = {
 }
 AUTH_USER_MODEL = "accounts.User"
 
+GAME_ENGINE_URL = os.getenv("GAME_ENGINE_URL", "").rstrip("/")
+
 
 
 REST_FRAMEWORK = {
