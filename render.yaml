@@ -41,6 +41,8 @@ services:
         value: "False"
       - key: DATABASE_URL
         sync: false
+      - key: GAME_BACKEND_URL
+        value: https://arcade-api-44d6.onrender.com
 
   - type: web
     name: arcade-frontend

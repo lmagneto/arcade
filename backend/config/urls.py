@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.urls import include, path
+from config.views import health_check
 from rest_framework_simplejwt.views import TokenRefreshView
 from accounts.views import ChangePasswordView, CustomTokenObtainPairView
 from game import urls as game_urls
@@ -9,6 +10,7 @@ admin.site.site_title = "ARCADE Admin"
 admin.site.index_title = "Operations dashboard"
 
 urlpatterns = [
+    path("health/", health_check, name="health-check"),
     path("admin/", admin.site.urls),
     path("api/token/", CustomTokenObtainPairView.as_view(),
         name="token_obtain_pair"),

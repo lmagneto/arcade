@@ -6,6 +6,8 @@ import time
 from datetime import timedelta
 
 import django
+import requests
+from django.conf import settings
 from django.core.management import call_command
 from django.utils import timezone
 
@@ -13,12 +15,14 @@ from django.utils import timezone
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 logger = logging.getLogger(__name__)
+BACKEND_KEEPALIVE_INTERVAL_SECONDS = 5 * 60
 CONTROLLER_HEARTBEAT_TIMEOUT_SECONDS = 30
 CONTROLLER_WATCH_INTERVAL_SECONDS = 5
 engine_ready = threading.Event()
 engine_thread: threading.Thread | None = None
 engine_thread_lock = threading.Lock()
 watchdog_thread: threading.Thread | None = None
+backend_keepalive_thread: threading.Thread | None = None
 controller_started_at: float | None = None
 
 
@@ -101,8 +105,52 @@ def _watch_controller():
         return
 
 
+def _ping_backend():
+    backend_url = settings.GAME_BACKEND_URL
+    if not backend_url:
+        logger.error(
+            "Backend keep-alive skipped: GAME_BACKEND_URL is not configured."
+        )
+        return
+
+    health_url = f"{backend_url.rstrip('/')}/health/"
+    try:
+        response = requests.get(health_url, timeout=(3, 5))
+    except requests.RequestException:
+        logger.warning(
+            "Backend keep-alive request failed. url=%s",
+            health_url,
+            exc_info=True,
+        )
+        return
+
+    if response.status_code == 200:
+        logger.info("Backend keep-alive request succeeded. url=%s", health_url)
+    else:
+        logger.warning(
+            "Backend keep-alive request returned HTTP %s. url=%s",
+            response.status_code,
+            health_url,
+        )
+
+
+def _keep_backend_awake():
+    next_check = time.monotonic()
+    while True:
+        try:
+            _ping_backend()
+        except Exception:
+            logger.exception(
+                "Unexpected backend keep-alive error; the game engine "
+                "will continue running."
+            )
+
+        next_check += BACKEND_KEEPALIVE_INTERVAL_SECONDS
+        time.sleep(max(0, next_check - time.monotonic()))
+
+
 def _ensure_engine_thread():
-    global engine_thread, watchdog_thread
+    global engine_thread, watchdog_thread, backend_keepalive_thread
 
     with engine_thread_lock:
         if engine_thread is None or not engine_thread.is_alive():
@@ -122,6 +170,16 @@ def _ensure_engine_thread():
                 daemon=True,
             )
             watchdog_thread.start()
+        if (
+            backend_keepalive_thread is None
+            or not backend_keepalive_thread.is_alive()
+        ):
+            backend_keepalive_thread = threading.Thread(
+                target=_keep_backend_awake,
+                name="game-backend-keepalive",
+                daemon=True,
+            )
+            backend_keepalive_thread.start()
     return engine_thread
 
 

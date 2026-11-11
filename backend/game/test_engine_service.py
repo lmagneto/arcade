@@ -21,7 +21,7 @@ class EngineServiceHealthTests(SimpleTestCase):
                     "game.engine_service"
                 )
 
-        self.assertEqual(thread_start.call_count, 2)
+        self.assertEqual(thread_start.call_count, 3)
 
     def invoke(self, path):
         response = {}
@@ -138,4 +138,27 @@ class EngineControllerWatchdogTests(SimpleTestCase):
         kill.assert_called_once_with(
             self.engine_service.os.getpid(),
             self.engine_service.signal.SIGTERM,
+        )
+
+
+class EngineBackendKeepaliveTests(SimpleTestCase):
+    def setUp(self):
+        with patch.object(threading.Thread, "start"):
+            self.engine_service = importlib.import_module(
+                "game.engine_service"
+            )
+
+    @patch("game.engine_service.requests.get")
+    def test_backend_ping_uses_public_health_endpoint(self, get):
+        with patch.object(
+            self.engine_service.settings,
+            "GAME_BACKEND_URL",
+            "https://arcade-api-44d6.onrender.com/",
+        ):
+            get.return_value = SimpleNamespace(status_code=200)
+            self.engine_service._ping_backend()
+
+        get.assert_called_once_with(
+            "https://arcade-api-44d6.onrender.com/health/",
+            timeout=(3, 5),
         )

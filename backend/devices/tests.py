@@ -151,3 +151,44 @@ class DevicePairingWorkflowTests(APITestCase):
             installation_id=self.installation_id
         )
         self.assertIsNone(activation_request.major_account_id)
+
+    def test_owner_with_temporary_password_cannot_claim_pairing_code(self):
+        self.owner.must_change_password = True
+        self.owner.save(update_fields=["must_change_password"])
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(
+            "/api/devices/pairing-requests/claim/",
+            {"pairing_code": "UNUSED-CODE"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(
+            response.data["detail"],
+            "You must change your temporary password before continuing.",
+        )
+
+
+class DeviceActivationPermissionTests(APITestCase):
+    def test_temporary_platform_admin_cannot_create_activation_request(self):
+        administrator = User.objects.create_user(
+            username="temporary-platform-admin",
+            password="Temporary-password-for-test-4821!",
+            role=User.Role.PLATFORM_ADMIN,
+            is_staff=True,
+            must_change_password=True,
+        )
+        self.client.force_authenticate(user=administrator)
+
+        response = self.client.post(
+            "/api/devices/activation-requests/",
+            {"major_account_id": str(uuid.uuid4())},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(
+            response.data["detail"],
+            "You must change your temporary password before continuing.",
+        )

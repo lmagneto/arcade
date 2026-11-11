@@ -14,6 +14,7 @@ from django.db import transaction
 from django.utils import timezone
 from packaging.version import InvalidVersion, Version
 import requests
+from accounts.permissions import PasswordChangeComplete
 from devices.services.activation import (
     activate_installation,
     create_activation_request,
@@ -50,6 +51,7 @@ class PairingStatusThrottle(AnonRateThrottle):
 class CreateActivationRequestView(APIView):
     permission_classes = [
         IsAuthenticated,
+        PasswordChangeComplete,
         IsPlatformAdministrator,
     ]
 
@@ -338,7 +340,7 @@ class CreatePCPairingRequestView(APIView):
 
 
 class ClaimPCPairingRequestView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, PasswordChangeComplete]
 
     def post(self, request):
         pairing_code = request.data.get("pairing_code")
